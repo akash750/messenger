@@ -1,68 +1,45 @@
 const connectToMongo = require('./db');
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-
-var cors = require('cors') 
+const cors = require('cors');
+const http = require('http'); // Import HTTP to create server
+const { Server } = require('socket.io'); // Import Server class from socket.io
 
 connectToMongo();
-const app = express()
+const app = express();
 
-app.use(cors())
-app.use(express.json())
-
-// Express app and HTTP server setup
+// Create HTTP server for socket.io
 const server = http.createServer(app);
-const io = new Server(server);
 
-// Connect to MongoDB using your predefined function
-connectToMongo();
-
-// Define message schema and model
-const mongoose = require('mongoose');
-const messageSchema = new mongoose.Schema({
-  sender: String,
-  recipient: String,
-  content: String,
-  timestamp: { type: Date, default: Date.now },
+// Initialize socket.io with the server
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Allow all origins, adjust according to your security needs
+  }
 });
 
-const Message = mongoose.model('Message', messageSchema);
+app.use(cors());
+app.use(express.json());
 
-// Handle socket.io connections
+
+// Listen for socket connections
 io.on('connection', (socket) => {
-  console.log('A user connected');
+  console.log('A user connected:', socket.id);
 
-  // Listen for incoming messages
-  socket.on('sendMessage', async ({ sender, recipient, content }) => {
-    const newMessage = new Message({ sender, recipient, content });
-
-    // Save the message to the database
-    await newMessage.save();
-
+  // Handle message events
+  socket.on('sendMessage', (message) => {
+    console.log('Message received:', message);
     // Emit the message to the recipient
-    io.emit('receiveMessage', { sender, recipient, content, timestamp: newMessage.timestamp });
+    io.emit('receiveMessage', message);
   });
 
-  // Handle disconnects
+  // Handle disconnection
   socket.on('disconnect', () => {
-    console.log('A user disconnected');
+    console.log('A user disconnected:', socket.id);
   });
 });
 
 // Start the server
-server.listen(3001, () => {
-  console.log('Server is running on port 3001');
+const PORT = process.env.PORT || 5000; // Use environment PORT or default to 5000
+server.listen(PORT, () => {
+  console.log(`Backend listening at http://localhost:${PORT}`);
 });
-
-
-
-// Available Routes
-// app.use('/api/gigslist', require('./routes/gigs_list'))
-// app.use('/api/categorylist', require('./routes/category_list'))
-// app.use('/api/gigs', require('./routes/gigs.js'))
-
-
-// app.listen(process.env.PORT || 8080, () => {
-//     console.log(`Backend listening at http://localhost:${process.env.PORT}`)
-// })
