@@ -1,45 +1,78 @@
 const connectToMongo = require('./db');
 const express = require('express');
 const cors = require('cors');
-const http = require('http'); // Import HTTP to create server
-const { Server } = require('socket.io'); // Import Server class from socket.io
+const http = require('http');
+const { Server } = require('socket.io');
+const User = require('./models/Users');
+const Message = require('./models/message');
 
-connectToMongo();
 const app = express();
 
-// Create HTTP server for socket.io
+// CORS setup to allow frontend connection
+app.use(cors({
+  origin: 'http://localhost:3000', // Ensure this matches your frontend URL
+  methods: ['GET', 'POST'],
+}));
+
+app.use(express.json());
+connectToMongo();
+
+// Create HTTP server for Socket.IO
 const server = http.createServer(app);
 
-// Initialize socket.io with the server
+// Initialize Socket.IO with the server and CORS configuration
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all origins, adjust according to your security needs
-  }
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+  },
 });
 
-app.use(cors());
-app.use(express.json());
-
+// In-memory user store to keep track of connected users
+const users = {};
 
 // Listen for socket connections
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
+  // Store user information
+  socket.on('register', async (username) => {
+    // Save or update the user
+    await User.findOneAndUpdate({ username }, { socketId: socket.id }, { upsert: true });
+    users[socket.id] = username;
+  });
+
   // Handle message events
-  socket.on('sendMessage', (message) => {
-    console.log('Message received:', message);
-    // Emit the message to the recipient
-    io.emit('receiveMessage', message);
+  socket.on('sendMessage', async ({ sender, recipient, content }) => {
+    console.log('Message received:', { sender, recipient, content });
+
+    // Save message to database
+    const newMessage = new Message({ sender, recipient, content });
+    await newMessage.save();
+
+    // Find recipient's socketId
+    const recipientUser = await User.findOne({ username: recipient });
+    if (recipientUser) {
+      const recipientSocketId = recipientUser.socketId;
+      io.to(recipientSocketId).emit('receiveMessage', { sender, content, timestamp: newMessage.timestamp });
+    }
   });
 
   // Handle disconnection
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     console.log('A user disconnected:', socket.id);
+    
+    // Remove user from the in-memory store
+    const username = users[socket.id];
+    if (username) {
+      await User.findOneAndUpdate({ username }, { socketId: null });
+      delete users[socket.id];
+    }
   });
 });
 
 // Start the server
-const PORT = process.env.PORT || 5000; // Use environment PORT or default to 5000
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Backend listening at http://localhost:${PORT}`);
 });

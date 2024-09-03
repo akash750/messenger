@@ -3,12 +3,15 @@ import io from 'socket.io-client';
 
 const Messenger = ({ sender, recipient }) => {
   // Initialize socket connection once
-  const [socket] = useState(() => io('http://localhost:3000'));
+  const [socket] = useState(() => io('http://localhost:5000'));
   const [connectionStatus, setConnectionStatus] = useState('Connecting...');
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
+    // Register the user when the component mounts
+    socket.emit('register', sender);
+
     // Check connection status
     socket.on('connect', () => {
       setConnectionStatus('Connected');
@@ -27,7 +30,10 @@ const Messenger = ({ sender, recipient }) => {
 
     // Listen for incoming messages
     socket.on('receiveMessage', (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      // Only display messages that are meant for the current user
+      if (message.sender === recipient || message.recipient === recipient) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
     });
 
     // Clean up the socket connection when the component unmounts
@@ -37,11 +43,16 @@ const Messenger = ({ sender, recipient }) => {
       socket.off('connect_error');
       socket.off('receiveMessage');
     };
-  }, [socket]);
+  }, [socket, sender, recipient]);
 
   const sendMessage = () => {
     if (message.trim()) {
-      const newMessage = { sender, recipient, content: message.trim(), timestamp: new Date() };
+      const newMessage = {
+        sender,
+        recipient,
+        content: message.trim(),
+        timestamp: new Date(),
+      };
       socket.emit('sendMessage', newMessage);
       setMessages((prevMessages) => [...prevMessages, newMessage]);
       setMessage('');
