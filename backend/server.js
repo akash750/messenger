@@ -40,6 +40,7 @@ io.on('connection', (socket) => {
     // Save or update the user
     await User.findOneAndUpdate({ username }, { socketId: socket.id }, { upsert: true });
     users[socket.id] = username;
+    socket.emit('registered', username); // Emit a confirmation event back to the client
   });
 
   // Handle message events
@@ -54,14 +55,14 @@ io.on('connection', (socket) => {
     const recipientUser = await User.findOne({ username: recipient });
     if (recipientUser) {
       const recipientSocketId = recipientUser.socketId;
-      io.to(recipientSocketId).emit('receiveMessage', { sender, content, timestamp: newMessage.timestamp });
+      io.sockets.sockets[recipientSocketId].emit('receiveMessage', { sender, content, timestamp: newMessage.timestamp });
     }
   });
 
   // Handle disconnection
   socket.on('disconnect', async () => {
     console.log('A user disconnected:', socket.id);
-    
+
     // Remove user from the in-memory store
     const username = users[socket.id];
     if (username) {

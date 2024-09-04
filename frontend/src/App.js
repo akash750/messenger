@@ -10,7 +10,7 @@ const Messenger = ({ sender, recipient }) => {
 
   useEffect(() => {
     // Register the user when the component mounts
-    socket.emit('register', sender);
+    socket.emit('register', "Manav");
 
     // Check connection status
     socket.on('connect', () => {
@@ -31,6 +31,7 @@ const Messenger = ({ sender, recipient }) => {
     // Listen for incoming messages
     socket.on('receiveMessage', (message) => {
       // Only display messages that are meant for the current user
+      console.log(message)
       if (message.sender === recipient || message.recipient === recipient) {
         setMessages((prevMessages) => [...prevMessages, message]);
       }
@@ -48,8 +49,8 @@ const Messenger = ({ sender, recipient }) => {
   const sendMessage = () => {
     if (message.trim()) {
       const newMessage = {
-        sender,
-        recipient,
+        sender:"Manav",
+        recipient:"Akash",
         content: message.trim(),
         timestamp: new Date(),
       };
